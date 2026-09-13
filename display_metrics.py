@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
-"""Display leakage fix results"""
+"""
+F1 Race Winner Prediction - Model Metrics Display Utility
+
+Displays final honest metrics from the trained ML models.
+Metrics are evaluated on held-out 2025 test set (never seen in training/calibration).
+
+Usage:
+    python display_metrics.py
+
+Output:
+    - Pre-qualifying model metrics (historical form only)
+    - Post-qualifying model metrics (with qualifying + FP2)
+    - Cross-validation results (3-fold walk-forward)
+    - Train/calibration/test split confirmation
+"""
 import json
 
 with open('models/saved_models/feature_columns.json') as f:

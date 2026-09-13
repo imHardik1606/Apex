@@ -35,7 +35,9 @@ os.makedirs("cache", exist_ok=True)
 os.makedirs("data", exist_ok=True)
 fastf1.Cache.enable_cache("cache")
 
-SEASONS = [2022, 2023, 2024, 2025]
+# Include 2026 to capture current season performance (Antonelli, etc)
+# Models will weight 2026 data more heavily via recency weighting in train_and_save.ipynb
+SEASONS = [2022, 2023, 2024, 2025, 2026]
 
 # Statuses that count as a finish (not DNF)
 FINISHED_STATUSES = {

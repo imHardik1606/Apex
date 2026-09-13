@@ -164,6 +164,42 @@ def fetch_fp2_data(season: int, round: int) -> pd.DataFrame:
         print(f"Error fetching FP2 data for {season} Round {round}: {e}")
         return pd.DataFrame()
 
+@lru_cache(maxsize=128)
+def fetch_race_results(season: int, round: int) -> pd.DataFrame:
+    """Fetch actual race results for a given season and round."""
+    try:
+        session = fastf1.get_session(season, round, 'R')
+        session.load(telemetry=False, weather=False, messages=False)
+        
+        results = session.results.copy()
+        
+        # Extract relevant columns - keep as strings first for cleaning
+        result_df = pd.DataFrame({
+            'position': results['Position'].astype(str).str.replace('+', '').str.replace('R', '').fillna('DNF'),
+            'driver': results['Abbreviation'],
+            'team': results['TeamName'],
+            'grid_position': results['GridPosition'].astype(str).str.replace('+', '').str.replace('R', '').fillna('20'),
+            'points': results['Points'].fillna(0).astype(int),
+            'status': results['Status'] if 'Status' in results.columns else 'Finished',
+            'time': results['Time'].astype(str) if 'Time' in results.columns else '',
+            'laps': results['Laps'].fillna(0).astype(int),
+        })
+        
+        # Clean up position column - handle DNF and non-finishes
+        result_df['position'] = pd.to_numeric(result_df['position'], errors='coerce').fillna(999).astype(int)
+        
+        # Clean up grid_position column - convert to numeric
+        result_df['grid_position'] = pd.to_numeric(result_df['grid_position'], errors='coerce').fillna(999).astype(int)
+        
+        # Sort by finishing position
+        result_df = result_df.sort_values('position').reset_index(drop=True)
+        
+        return result_df
+    
+    except Exception as e:
+        print(f"Error fetching race results for {season} Round {round}: {e}")
+        return pd.DataFrame()
+
 # Feature Engineering Functions
 def get_pre_qual_features(season: int, round: int, circuit_id: str) -> pd.DataFrame:
     """Get pre-qualifying features from history"""
@@ -524,6 +560,65 @@ def predict_post_qual():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/race-results', methods=['POST'])
+def get_race_results():
+    """Fetch actual race results from FastF1"""
+    try:
+        data = request.get_json()
+
+        # Validate input
+        required = ['season', 'round']
+        if not all(k in data for k in required):
+            return jsonify({'error': f'Missing fields. Required: {required}'}), 400
+
+        season = int(data['season'])
+        round_no = int(data['round'])
+        circuit_id = str(data.get('circuit_id', 'Unknown'))
+        
+        # Fetch race results
+        results_df = fetch_race_results(season, round_no)
+        
+        if results_df.empty:
+            return jsonify({'error': 'No race results available for this round'}), 404
+        
+        # Format response
+        results = []
+        for _, row in results_df.iterrows():
+            # Ensure position and grid_position are integers for comparison
+            pos = int(row['position']) if pd.notna(row['position']) else 999
+            grid_pos = int(row['grid_position']) if pd.notna(row['grid_position']) else 999
+            
+            results.append({
+                'position': pos if pos < 999 else None,
+                'driver': str(row['driver']),
+                'team': str(row['team']),
+                'grid_position': grid_pos if grid_pos < 999 else None,
+                'points': int(row['points']),
+                'status': str(row['status']),
+                'laps': int(row['laps']),
+                'time': str(row['time']) if str(row['time']) != '' else 'DNF'
+            })
+        
+        # Get winner (first finished driver with position)
+        winner = next(
+            (r for r in results if r['position'] is not None),
+            results[0] if results else None
+        )
+        
+        return jsonify({
+            'season': season,
+            'round': round_no,
+            'circuit': circuit_id,
+            'results': results,
+            'total_finishers': len([r for r in results if r['position'] is not None]),
+            'total_drivers': len(results),
+            'winner': winner['driver'] if winner else None,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint"""
@@ -541,10 +636,11 @@ def home():
     """API information"""
     return jsonify({
         'name': 'F1 Race Winner Prediction API',
-        'version': '2.0.0',
+        'version': '1.0.0',
         'endpoints': {
-            'POST /predict/pre-qualifying': 'Predict before qualifying',
-            'POST /predict/post-qualifying': 'Predict after qualifying',
+            'POST /predict/pre-qualifying': 'Predict before qualifying (historical data only)',
+            'POST /predict/post-qualifying': 'Predict after qualifying (includes live session data)',
+            'POST /race-results': 'Get actual race results from FastF1',
             'GET /health': 'Health check',
             'GET /': 'This information'
         },

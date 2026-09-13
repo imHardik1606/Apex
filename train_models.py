@@ -1,8 +1,20 @@
 #!/usr/bin/env python3
 """
-LEAKAGE-FIXED Training Pipeline
-Executes train_and_save notebook content with corrected 3-way split
-and honest evaluation metrics.
+F1 Race Winner Prediction - Model Training Pipeline
+
+Trains XGBoost classifiers for F1 race winner prediction with proper
+temporal validation (3-way split: Train [2022-2023] / Cal [2024] / Test [2025]).
+
+All leakage sources fixed:
+    ✓ Evaluation on held-out test set (not calibration set)
+    ✓ Preprocessing uses training statistics only
+    ✓ Cross-validation uses uniform weights (no temporal leakage)
+
+Output:
+    - Pre-qualifying model: 29.17% top-1 hit rate
+    - Post-qualifying model: 41.67% top-1 hit rate
+    - All models saved to models/saved_models/
+    - Metrics and metadata in feature_columns.json
 """
 
 import json

@@ -114,10 +114,10 @@
   "scale_pos_weight": 19,
   "train_seasons": [
     2022,
-    2023,
-    2024
+    2023
   ],
-  "calibration_season": 2025,
+  "calibration_season": 2024,
+  "test_season": 2025,
   "all_seasons": [
     2022,
     2023,
@@ -125,27 +125,33 @@
     2025
   ],
   "pre_qual_cv_metrics": {
-    "log_loss": 0.2319,
-    "brier_score": 0.0529,
-    "auc_pr": 0.7011,
-    "top1_hit_rate": 0.7727
+    "log_loss": 0.3965,
+    "brier_score": 0.1262,
+    "auc_pr": 0.3931,
+    "top1_hit_rate": 0.452
   },
   "post_qual_cv_metrics": {
-    "log_loss": 0.1709,
-    "brier_score": 0.0346,
-    "auc_pr": 0.9258,
-    "top1_hit_rate": 0.8182
+    "log_loss": 0.3307,
+    "brier_score": 0.0901,
+    "auc_pr": 0.6154,
+    "top1_hit_rate": 0.5795
   },
   "pre_qual_final_metrics": {
-    "log_loss": 0.0779,
-    "brier_score": 0.0235,
-    "auc_pr": 0.9968,
-    "top1_hit_rate": 1.0
+    "log_loss": 0.1315,
+    "brier_score": 0.0409,
+    "auc_pr": 0.2601,
+    "top1_hit_rate": 0.2917
   },
   "post_qual_final_metrics": {
-    "log_loss": 0.0378,
-    "brier_score": 0.0098,
-    "auc_pr": 0.9916,
-    "top1_hit_rate": 1.0
-  }
+    "log_loss": 0.1077,
+    "brier_score": 0.0339,
+    "auc_pr": 0.4512,
+    "top1_hit_rate": 0.4167
+  },
+  "leakage_fixes_applied": [
+    "3-way split: Train [2022-2023] / Cal [2024] / Test [2025]",
+    "Evaluation on held-out test set only (not calibration set)",
+    "CV uses uniform weights (no recency leakage)",
+    "NaN filling uses training statistics only"
+  ]
 }

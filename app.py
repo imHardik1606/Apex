@@ -57,6 +57,36 @@ PIT_STOP_DELTA = {
     "Brazil": 21.5, "Qatar": 21.0, "Abu Dhabi": 21.0,
 }
 
+# 2026 F1 Grid - 22 drivers, 11 teams
+GRID_2026 = {
+    "VER", "HAD",  # Red Bull
+    "LEC", "HAM",  # Ferrari
+    "RUS", "ANT",  # Mercedes
+    "NOR", "PIA",  # McLaren
+    "ALO", "STR",  # Aston Martin
+    "GAS", "COL",  # Alpine
+    "LAW", "LIN",  # Racing Bulls
+    "OCO", "BEA",  # Haas
+    "ALB", "SAI",  # Williams
+    "HUL", "BOR",  # Audi
+    "PER", "BOT",  # Cadillac
+}
+
+# Driver to Team mapping for 2026
+DRIVER_TEAM_2026 = {
+    "VER": "Red Bull", "HAD": "Red Bull",
+    "LEC": "Ferrari", "HAM": "Ferrari",
+    "RUS": "Mercedes", "ANT": "Mercedes",
+    "NOR": "McLaren", "PIA": "McLaren",
+    "ALO": "Aston Martin", "STR": "Aston Martin",
+    "GAS": "Alpine", "COL": "Alpine",
+    "LAW": "Racing Bulls", "LIN": "Racing Bulls",
+    "OCO": "Haas", "BEA": "Haas",
+    "ALB": "Williams", "SAI": "Williams",
+    "HUL": "Audi", "BOR": "Audi",
+    "PER": "Cadillac", "BOT": "Cadillac",
+}
+
 # FastF1 Fetching Functions
 
 @lru_cache(maxsize=128)
@@ -245,10 +275,95 @@ def build_post_qual_features(season: int, round: int, circuit_id: str) -> pd.Dat
 
 # Helper Functions
 
+@lru_cache(maxsize=32)
+def get_current_season_drivers(season: int) -> set:
+    """Get set of drivers currently participating in a given season"""
+    if season == 2026:
+        # Return actual 2026 grid
+        return GRID_2026
+    
+    # For other seasons, use historical data
+    season_data = pre_qual_history[pre_qual_history['season'] == season]
+    return set(season_data['driver'].unique()) if not season_data.empty else set()
+
+def filter_results_by_current_drivers(results: list, season: int, fallback_to_all: bool = False) -> list:
+    """
+    Filter prediction results to only include drivers in current season.
+    For 2026+, this ensures only registered drivers are shown.
+    """
+    current_drivers = get_current_season_drivers(season)
+    
+    if not current_drivers and fallback_to_all:
+        # Fallback: show all if season data incomplete
+        return results
+    
+    if current_drivers:
+        # Filter results to only include drivers in current season
+        filtered = [r for r in results if r['driver'] in current_drivers]
+        return filtered if filtered else results
+    
+    return results
+
 def normalize_probs(probs: np.ndarray) -> np.ndarray:
     """Normalize probabilities to sum to 1"""
     total = probs.sum()
     return probs / total if total > 0 else probs
+
+
+def fill_missing_2026_drivers(feature_df: pd.DataFrame, season: int) -> pd.DataFrame:
+    """
+    Ensure feature_df contains all drivers in GRID_2026 for 2026 season.
+    For missing drivers, create rows using teammate data or median values.
+    Removes drivers not in GRID_2026.
+    """
+    if season != 2026:
+        return feature_df
+    
+    # Filter to only keep drivers in GRID_2026
+    feature_df = feature_df[feature_df['driver'].isin(GRID_2026)].copy()
+    
+    current_drivers = set(feature_df['driver'].unique())
+    missing_drivers = GRID_2026 - current_drivers
+    
+    if missing_drivers:
+        print(f"Missing drivers in feature_df: {missing_drivers}")
+        
+        # Create rows for missing drivers
+        new_rows = []
+        for driver in missing_drivers:
+            team = DRIVER_TEAM_2026.get(driver)
+            
+            # Try to find teammate data
+            teammate_rows = feature_df[feature_df['team'] == team]
+            
+            if not teammate_rows.empty:
+                # Copy from teammate
+                new_row = teammate_rows.iloc[0].copy()
+                new_row['driver'] = driver
+            else:
+                # Create row from medians
+                new_row = feature_df.median(numeric_only=True)
+                new_row['driver'] = driver
+                new_row['team'] = team
+            
+            new_rows.append(new_row)
+        
+        # Append new rows to feature_df
+        new_df = pd.DataFrame(new_rows)
+        feature_df = pd.concat([feature_df, new_df], ignore_index=True)
+        print(f"Added {len(new_rows)} missing drivers. Total drivers now: {len(feature_df)}")
+    
+    # Validate
+    final_drivers = set(feature_df['driver'].unique())
+    missing = GRID_2026 - final_drivers
+    extra = final_drivers - GRID_2026
+    
+    if missing:
+        print(f"WARNING: Still missing drivers after fill: {missing}")
+    if extra:
+        print(f"WARNING: Extra drivers found (should be removed): {extra}")
+    
+    return feature_df
 
 
 # API Endpoints
@@ -275,7 +390,27 @@ def predict_pre_qual():
         if feature_df.empty:
             return jsonify({'error': 'No historical data available'}), 404
 
-          # Prepare features
+        # Fill missing drivers for 2026 season
+        feature_df = fill_missing_2026_drivers(feature_df, season)
+        
+        # Validation for 2026
+        if season == 2026:
+            current_drivers = set(feature_df['driver'].unique())
+            missing = GRID_2026 - current_drivers
+            extra = current_drivers - GRID_2026
+            
+            if missing or extra:
+                error_msg = []
+                if missing:
+                    error_msg.append(f"Missing drivers: {missing}")
+                if extra:
+                    error_msg.append(f"Extra drivers: {extra}")
+                print(f"ERROR: {', '.join(error_msg)}")
+                return jsonify({'error': ', '.join(error_msg)}), 400
+            
+            assert len(current_drivers) == 22, f"Expected 22 drivers, got {len(current_drivers)}"
+
+        # Prepare features
         available = [c for c in PRE_QUAL_FEATURES if c in feature_df.columns]
         X = feature_df[available].fillna(pre_med)
         
@@ -294,13 +429,18 @@ def predict_pre_qual():
         
         results.sort(key=lambda x: x['win_probability'], reverse=True)
         
+        # Filter to only current season drivers
+        if season != 2026:
+            results = filter_results_by_current_drivers(results, season, fallback_to_all=True)   
+
         return jsonify({
             'model': 'pre-qualifying',
             'season': season,
             'round': round_no,
             'circuit': circuit_id,
             'predictions': results,
-            'total_drivers': len(results)
+            'total_drivers': len(results),
+            'note': f'Showing {len(results)} drivers registered for {season} season'
         })
     
     except Exception as e:
@@ -327,6 +467,26 @@ def predict_post_qual():
         if feature_df.empty:
             return jsonify({'error': 'Could not build features for this race'}), 404
         
+        # Fill missing drivers for 2026 season
+        feature_df = fill_missing_2026_drivers(feature_df, season)
+        
+        # Validation for 2026
+        if season == 2026:
+            current_drivers = set(feature_df['driver'].unique())
+            missing = GRID_2026 - current_drivers
+            extra = current_drivers - GRID_2026
+            
+            if missing or extra:
+                error_msg = []
+                if missing:
+                    error_msg.append(f"Missing drivers: {missing}")
+                if extra:
+                    error_msg.append(f"Extra drivers: {extra}")
+                print(f"ERROR: {', '.join(error_msg)}")
+                return jsonify({'error': ', '.join(error_msg)}), 400
+            
+            assert len(current_drivers) == 22, f"Expected 22 drivers, got {len(current_drivers)}"
+        
         # Prepare features
         available = [c for c in POST_QUAL_FEATURES if c in feature_df.columns]
         X = feature_df[available].fillna(post_med)
@@ -346,6 +506,9 @@ def predict_post_qual():
             })
         
         results.sort(key=lambda x: x['win_probability'], reverse=True)
+        
+        # Filter to only current season drivers
+        results = filter_results_by_current_drivers(results, season, fallback_to_all=True)
 
         return jsonify({
             'model': 'post-qualifying',
@@ -354,7 +517,8 @@ def predict_post_qual():
             'circuit': circuit_id,
             'predictions': results,
             'total_drivers': len(results),
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.utcnow().isoformat(),
+            'note': f'Showing {len(results)} drivers registered for {season} season'
         })
     
     except Exception as e:

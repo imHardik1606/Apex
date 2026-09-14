@@ -48,6 +48,109 @@ python app.py
 ```
 Starts Flask server on `http://localhost:5000` with prediction endpoints.
 
+## How to Run the Project
+
+Run these commands from the project root, the directory containing `app.py`, `train_models.py`, and `requirements.txt`.
+
+### 1. Create and activate the environment
+
+Windows PowerShell:
+
+```powershell
+cd "C:\path\to\F1-Race-Winner-Prediction"
+python -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+If PowerShell execution policies prevent activation, run the project with the environment's interpreter directly:
+
+```powershell
+.\.venv\Scripts\python.exe display_metrics.py
+```
+
+### 2. Check the installed models
+
+The repository includes trained models in `models/saved_models/`. Confirm that they load correctly and view their recorded metrics:
+
+```powershell
+python display_metrics.py
+```
+
+### 3. Retrain the models (optional)
+
+To rebuild the models from the processed datasets:
+
+```powershell
+python train_models.py
+```
+
+This runs walk-forward validation, trains on the configured historical seasons, calibrates probabilities, evaluates the held-out test season, and writes updated files to `models/saved_models/`.
+
+Do not run this step unless you intend to replace the existing model files.
+
+### 4. Start the Flask API
+
+```powershell
+python app.py
+```
+
+Keep this terminal open. The API will be available at `http://127.0.0.1:5000`.
+FastF1 may download session data on the first request and reuse the local `cache/` directory on later requests.
+
+Check that the server is running:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:5000/health
+```
+
+### 5. Call the prediction endpoints
+
+Pre-qualifying prediction:
+
+```powershell
+$body = @{ season = 2026; round = 1 } | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:5000/predict/pre-qualifying `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+Post-qualifying prediction:
+
+```powershell
+$body = @{ season = 2026; round = 1 } | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:5000/predict/post-qualifying `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+Race results:
+
+```powershell
+$body = @{ season = 2026; round = 1 } | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:5000/race-results `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+The API also exposes `GET /` for a basic status response. Stop the server with `Ctrl+C`.
+
+### 6. Run the training notebook
+
+For an interactive run, install Jupyter if needed and open the maintained notebook:
+
+```powershell
+pip install jupyter ipykernel
+jupyter notebook models/train_and_save.ipynb
+```
+
+Run the notebook cells from top to bottom. The notebook and `train_models.py` implement the same leakage-safe training workflow; use the script for repeatable command-line training.
+
 ---
 
 ## 📁 Project Structure

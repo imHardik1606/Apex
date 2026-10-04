@@ -145,6 +145,7 @@ def make_xgb(scale_pos_weight, early_stopping=True):
         learning_rate=0.05,
         subsample=0.8,
         colsample_bytree=0.8,
+        colsample_bynode=0.6,
         min_child_weight=5,
         gamma=1,
         reg_alpha=0.1,
@@ -288,7 +289,7 @@ def train_final_model(dataset, feature_cols, label):
 
     return model, calibrated, available, train_medians, metrics
 
-print("\n" + "─"*70)
+print("\n" + "-"*70)
 pre_model, pre_cal, pre_feats, pre_medians, pre_final_metrics = train_final_model(
     pre_df, pre_qual_features, "PRE-QUAL MODEL"
 )

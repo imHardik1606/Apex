@@ -127,27 +127,33 @@
     2026
   ],
   "pre_qual_cv_metrics": {
-    "log_loss": 0.3534,
-    "brier_score": 0.1039,
-    "auc_pr": 0.4161,
-    "top1_hit_rate": 0.4465
+    "log_loss": 0.4062,
+    "brier_score": 0.1208,
+    "auc_pr": 0.4028,
+    "top1_hit_rate": 0.4223
   },
   "post_qual_cv_metrics": {
-    "log_loss": 0.3417,
-    "brier_score": 0.1028,
-    "auc_pr": 0.589,
-    "top1_hit_rate": 0.5964
+    "log_loss": 0.266,
+    "brier_score": 0.0746,
+    "auc_pr": 0.6432,
+    "top1_hit_rate": 0.6233
   },
   "pre_qual_final_metrics": {
-    "log_loss": 0.1367,
-    "brier_score": 0.041,
-    "auc_pr": 0.2196,
-    "top1_hit_rate": 0.2308
+    "log_loss": 0.2275,
+    "brier_score": 0.0399,
+    "auc_pr": 0.1981,
+    "top1_hit_rate": 0.2
   },
   "post_qual_final_metrics": {
-    "log_loss": 0.1767,
-    "brier_score": 0.0204,
-    "auc_pr": 0.6401,
-    "top1_hit_rate": 0.7692
-  }
+    "log_loss": 0.1622,
+    "brier_score": 0.0208,
+    "auc_pr": 0.6527,
+    "top1_hit_rate": 0.7333
+  },
+  "leakage_fixes_applied": [
+    "3-way split: Train [2022-2023] / Cal [2024] / Test [2025]",
+    "Evaluation on held-out test set only (not calibration set)",
+    "CV uses uniform weights (no recency leakage)",
+    "NaN filling uses training statistics only"
+  ]
 }

@@ -112,6 +112,12 @@ def normalise_circuit(location):
     return str(location).strip()
 
 
+CIRCUIT_OVERRIDES = {
+    # Relocated due to regional conflict; treat as novel because neither Sakhir nor historical Sepang applies.
+    (2026, "Bahrain Grand Prix"): "Sepang_relocated_2026",
+}
+
+
 def extract_fp2_long_run(year, round_no):
     """
     Extracts FP2 long run average pace per driver.
@@ -206,7 +212,10 @@ for year in SEASONS:
 
         round_no   = int(event["RoundNumber"])
         location   = event.get("Location", event.get("EventName", "Unknown"))
-        circuit_id = normalise_circuit(location)
+        circuit_id = CIRCUIT_OVERRIDES.get(
+            (year, event.get("EventName")),
+            normalise_circuit(location),
+        )
 
         # ── Race Session ────────────────────────────────────────────────────
 
